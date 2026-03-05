@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Create Room</title>
+</head>
+<body>
+  <h2>Create a Room</h2>
+
+  <label>Room name</label><br/>
+  <input id="room-name" type="text" placeholder="My Project"/><br/><br/>
+
+  <label>Channels (one per line)</label><br/>
+  <textarea id="channels-input" rows="5" placeholder="general&#10;css&#10;javascript"></textarea><br/><br/>
+
+  <small>A unique Room ID will be generated automatically.</small><br/><br/>
+
+  <button id="btn-create">Create Room</button>
+  <p id="msg"></p>
+
+  <script type="module">
+    import { createRoom }       from "./roomService.js";
+    import { waitForAuthReady } from "./session.js";
+
+    async function init() {
+      const user = await waitForAuthReady();
+      if (!user) { window.location.href = "/index.html"; return; }
+
+      document.getElementById("btn-create").onclick = async () => {
+        const roomName = document.getElementById("room-name").value.trim();
+        const channels = document.getElementById("channels-input").value
+          .split("\n").map(s => s.trim()).filter(Boolean);
+
+        if (!roomName)        { document.getElementById("msg").textContent = "Room name is required."; return; }
+        if (!channels.length) { document.getElementById("msg").textContent = "Add at least one channel."; return; }
+
+        document.getElementById("btn-create").disabled = true;
+        document.getElementById("msg").textContent = "Creating…";
+
+        const { roomId, error } = await createRoom({
+          roomName,
+          channels,
+          createdBy:   user.uid,
+          displayName: user.displayName ?? user.email,
+        });
+
+        document.getElementById("btn-create").disabled = false;
+
+        if (error) {
+          document.getElementById("msg").textContent = `Error: ${error}`;
+        } else {
+          // Redirect to editor — creator lands directly in their new room
+          window.location.href = `/editor.html?room=${roomId}`;
+        }
+      };
+    }
+
+    init();
+  </script>
+</body>
+</html>
