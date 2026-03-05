@@ -1,0 +1,38 @@
+// storage.rules — Firebase Storage Security Rules
+// ─────────────────────────────────────────────────
+// Deploy with:  firebase deploy --only storage
+//
+// Covers the avatars/{uid}/avatar path only.
+// Rules:
+//   • Only the owning user may upload or delete their own avatar.
+//   • Uploads must be images and under 5 MB.
+//   • Anyone authenticated can read avatars (needed for profile display).
+
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ── avatars/{uid}/avatar ──────────────────────────────────────────────────
+    match /avatars/{uid}/avatar {
+
+      // Any signed-in user can read avatars (e.g. for profile display elsewhere)
+      allow read: if request.auth != null;
+
+      // Only the owner may upload their avatar
+      allow write: if
+        request.auth != null
+        && request.auth.uid == uid
+        && request.resource.size <= 5 * 1024 * 1024          // max 5 MB
+        && request.resource.contentType.matches('image/.*'); // images only
+
+      // Only the owner may delete
+      allow delete: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // ── Catch-all: deny everything else ──────────────────────────────────────
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Login</title>
+</head>
+<body>
+  <h2>Login</h2>
+
+  <input id="email"    type="email"    placeholder="Email"/><br/>
+  <input id="password" type="password" placeholder="Password"/><br/>
+  <button id="btn-signin">Sign in with Email</button>
+
+  <hr/>
+  <button id="btn-github">Continue with GitHub</button><br/>
+  <button id="btn-google">Continue with Google</button>
+
+  <hr/>
+  <a href="/signup.html">Don't have an account? Sign up</a>
+
+  <p id="msg"></p>
+
+  <script type="module">
+    import { signInWithEmail, signInWithGitHub, signInWithGoogle } from "./auth.js";
+
+    const msg = (text) => document.getElementById("msg").textContent = text;
+
+    document.getElementById("btn-signin").onclick = async () => {
+      const email = document.getElementById("email").value.trim();
+      const pass  = document.getElementById("password").value;
+      const { user, error } = await signInWithEmail(email, pass);
+      if (error) msg(error);
+      else { msg(`Signed in: ${user.email}`); /* redirect to dashboard */ }
+    };
+
+    document.getElementById("btn-github").onclick = async () => {
+      const { user, error } = await signInWithGitHub();
+      if (error) msg(error);
+      else if (user) { msg(`Signed in: ${user.displayName}`); /* redirect */ }
+    };
+
+    document.getElementById("btn-google").onclick = async () => {
+      const { user, error } = await signInWithGoogle();
+      if (error) msg(error);
+      else if (user) { msg(`Signed in: ${user.displayName}`); /* redirect */ }
+    };
+  </script>
+</body>
+</html>

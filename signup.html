@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sign Up</title>
+</head>
+<body>
+  <h2>Create account</h2>
+
+  <input id="name"     type="text"     placeholder="Display name"/><br/>
+  <input id="email"    type="email"    placeholder="Email"/><br/>
+  <input id="password" type="password" placeholder="Password (min 6 chars)"/><br/>
+  <button id="btn-signup">Sign up with Email</button>
+
+  <hr/>
+  <button id="btn-github">Continue with GitHub</button><br/>
+  <button id="btn-google">Continue with Google</button>
+
+  <hr/>
+  <a href="/index.html">Already have an account? Sign in</a>
+
+  <p id="msg"></p>
+
+  <script type="module">
+    import { signUpWithEmail, signInWithGitHub, signInWithGoogle } from "./auth.js";
+
+    const msg = (text) => document.getElementById("msg").textContent = text;
+
+    document.getElementById("btn-signup").onclick = async () => {
+      const name  = document.getElementById("name").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const pass  = document.getElementById("password").value;
+      const { user, error } = await signUpWithEmail(email, pass, name);
+      if (error) msg(error);
+      else { msg(`Account created: ${user.email}`); /* redirect to dashboard */ }
+    };
+
+    document.getElementById("btn-github").onclick = async () => {
+      const { user, isNew, error } = await signInWithGitHub();
+      if (error) msg(error);
+      else if (user) { msg(`${isNew ? "Registered" : "Signed in"}: ${user.displayName}`); /* redirect */ }
+    };
+
+    document.getElementById("btn-google").onclick = async () => {
+      const { user, isNew, error } = await signInWithGoogle();
+      if (error) msg(error);
+      else if (user) { msg(`${isNew ? "Registered" : "Signed in"}: ${user.displayName}`); /* redirect */ }
+    };
+  </script>
+</body>
+</html>

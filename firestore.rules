@@ -1,0 +1,122 @@
+// firestore.rules — Firestore Security Rules
+// ───────────────────────────────────────────
+// Deploy with:  firebase deploy --only firestore:rules
+//
+// Principles:
+//   • Users can only read and write their own profile document.
+//   • No document may be created without a matching Auth UID.
+//   • Avatar URL must be a string or null — no arbitrary data injection.
+
+rules_version = '2';
+
+service cloud.firestore {// firestore.rules — Firestore Security Rules
+// ───────────────────────────────────────────
+// Deploy with:  firebase deploy --only firestore:rules
+//
+// Principles:
+//   • Users can only read and write their own profile document.
+//   • No document may be created without a matching Auth UID.
+//   • Avatar URL must be a string or null — no arbitrary data injection.
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper functions ──────────────────────────────────────────────────────
+
+    // True when the requester is signed in and their UID matches the document ID
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // Validate the shape of a profile write
+    function isValidProfile() {
+      let data = request.resource.data;
+      return
+        data.keys().hasAll(["uid", "displayName", "email", "provider", "createdAt", "updatedAt"])
+        && data.uid       is string
+        && data.displayName is string && data.displayName.size() > 0 && data.displayName.size() <= 60
+        && data.email     is string
+        && data.provider  in ["email", "github", "google"]
+        && (data.avatarUrl == null || data.avatarUrl is string);
+    }
+
+    // Validate a partial profile update (only writable fields may change)
+    function isValidProfileUpdate() {
+      let allowed = ["displayName", "avatarUrl", "updatedAt"];
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowed);
+    }
+
+    // ── /users/{uid} ──────────────────────────────────────────────────────────
+    match /users/{uid} {
+
+      // Any signed-in user can read their own profile
+      allow read: if isOwner(uid);
+
+      // Only the owner can create their profile, and it must match the schema
+      allow create: if isOwner(uid) && isValidProfile();
+
+      // Only the owner can update, and only allowed fields may change
+      allow update: if isOwner(uid) && isValidProfileUpdate();
+
+      // Profiles are never deleted via client (handle via Cloud Function if needed)
+      allow delete: if false;
+    }
+
+    // ── Catch-all: deny everything else ──────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+  match /databases/{database}/documents {
+
+    // ── Helper functions ──────────────────────────────────────────────────────
+
+    // True when the requester is signed in and their UID matches the document ID
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // Validate the shape of a profile write
+    function isValidProfile() {
+      let data = request.resource.data;
+      return
+        data.keys().hasAll(["uid", "displayName", "email", "provider", "createdAt", "updatedAt"])
+        && data.uid       is string
+        && data.displayName is string && data.displayName.size() > 0 && data.displayName.size() <= 60
+        && data.email     is string
+        && data.provider  in ["email", "github"]
+        && (data.avatarUrl == null || data.avatarUrl is string);
+    }
+
+    // Validate a partial profile update (only writable fields may change)
+    function isValidProfileUpdate() {
+      let allowed = ["displayName", "avatarUrl", "updatedAt"];
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowed);
+    }
+
+    // ── /users/{uid} ──────────────────────────────────────────────────────────
+    match /users/{uid} {
+
+      // Any signed-in user can read their own profile
+      allow read: if isOwner(uid);
+
+      // Only the owner can create their profile, and it must match the schema
+      allow create: if isOwner(uid) && isValidProfile();
+
+      // Only the owner can update, and only allowed fields may change
+      allow update: if isOwner(uid) && isValidProfileUpdate();
+
+      // Profiles are never deleted via client (handle via Cloud Function if needed)
+      allow delete: if false;
+    }
+
+    // ── Catch-all: deny everything else ──────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
