@@ -25,11 +25,8 @@
       const user = await waitForAuthReady();
       if (!user) { window.location.href = "/index.html"; return; }
 
-      // Pre-fill room ID if passed in URL e.g. /join-room.html?room=X7K-29A
       const params = new URLSearchParams(window.location.search);
-      if (params.get("room")) {
-        document.getElementById("room-id").value = params.get("room");
-      }
+      if (params.get("room")) document.getElementById("room-id").value = params.get("room");
 
       document.getElementById("btn-join").onclick = async () => {
         const roomId = document.getElementById("room-id").value.trim().toUpperCase();
@@ -49,7 +46,6 @@
         if (error) {
           document.getElementById("msg").textContent = `Error: ${error}`;
         } else {
-          // Redirect to the shared editor
           window.location.href = `/editor.html?room=${roomId}`;
         }
       };

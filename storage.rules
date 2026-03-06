@@ -1,13 +1,3 @@
-// storage.rules — Firebase Storage Security Rules
-// ─────────────────────────────────────────────────
-// Deploy with:  firebase deploy --only storage
-//
-// Covers the avatars/{uid}/avatar path only.
-// Rules:
-//   • Only the owning user may upload or delete their own avatar.
-//   • Uploads must be images and under 5 MB.
-//   • Anyone authenticated can read avatars (needed for profile display).
-
 rules_version = '2';
 
 service firebase.storage {
@@ -15,22 +5,26 @@ service firebase.storage {
 
     // ── avatars/{uid}/avatar ──────────────────────────────────────────────────
     match /avatars/{uid}/avatar {
-
-      // Any signed-in user can read avatars (e.g. for profile display elsewhere)
-      allow read: if request.auth != null;
-
-      // Only the owner may upload their avatar
-      allow write: if
-        request.auth != null
+      allow read:   if request.auth != null;
+      allow write:  if request.auth != null
         && request.auth.uid == uid
-        && request.resource.size <= 5 * 1024 * 1024          // max 5 MB
-        && request.resource.contentType.matches('image/.*'); // images only
-
-      // Only the owner may delete
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
       allow delete: if request.auth != null && request.auth.uid == uid;
     }
 
-    // ── Catch-all: deny everything else ──────────────────────────────────────
+    // ── rooms/{roomId}/files/{allPaths=**} ────────────────────────────────────
+    // Any signed-in user may read room files (members need to open them in editor)
+    // Any signed-in user may upload — room membership is enforced at the
+    // Firestore metadata write level (fileService.js + firestore.rules)
+    match /rooms/{roomId}/files/{allPaths=**} {
+      allow read:   if request.auth != null;
+      allow write:  if request.auth != null
+        && request.resource.size <= 5 * 1024 * 1024;  // 5 MB per file
+      allow delete: if request.auth != null;
+    }
+
+    // ── catch-all ─────────────────────────────────────────────────────────────
     match /{allPaths=**} {
       allow read, write: if false;
     }

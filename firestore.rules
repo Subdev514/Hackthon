@@ -3,19 +3,8 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── helpers ───────────────────────────────────────────────────────────────
-    function signedIn() {
-      return request.auth != null;
-    }
-
-    function isOwner(uid) {
-      return signedIn() && request.auth.uid == uid;
-    }
-
-    function isMember(roomId) {
-      return signedIn() &&
-        exists(/databases/$(database)/documents/rooms/$(roomId)/members/$(request.auth.uid));
-    }
+    function signedIn()   { return request.auth != null; }
+    function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
 
     // ── /users/{uid} ──────────────────────────────────────────────────────────
     match /users/{uid} {
@@ -32,44 +21,63 @@ service cloud.firestore {
 
     // ── /rooms/{roomId} ───────────────────────────────────────────────────────
     match /rooms/{roomId} {
-
-      // Any signed-in user can read a room doc (needed to validate room ID on join)
-      allow read: if signedIn();
-
-      // Any signed-in user can create a room they own
+      allow read:   if signedIn();
       allow create: if signedIn()
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0;
+      allow update: if signedIn();
+      allow delete: if signedIn() && resource.data.createdBy == request.auth.uid;
 
-      // Only members can update room metadata
-      allow update: if isMember(roomId);
-
-      // Only the creator can delete
-      allow delete: if signedIn()
-        && resource.data.createdBy == request.auth.uid;
-
-      // ── /rooms/{roomId}/members/{uid} ──────────────────────────────────────
+      // members
       match /members/{uid} {
-        allow read:   if signedIn();
-        // Users can only write their own membership document
-        allow write:  if isOwner(uid);
+        allow read:  if signedIn();
+        allow write: if isOwner(uid);
       }
 
-      // ── /rooms/{roomId}/channels/{channelId} ───────────────────────────────
+      // channels
       match /channels/{channelId} {
-        // Any signed-in user can read/write channels
-        // (membership check happens at room level; keep this permissive during dev)
+        allow read:   if signedIn();
+        allow create: if signedIn();
+        allow update: if signedIn();
+        allow delete: if false;
+
+        // messages
+        match /messages/{messageId} {
+          allow read:   if signedIn();
+          allow create: if signedIn()
+            && request.resource.data.senderId == request.auth.uid
+            && request.resource.data.text is string
+            && request.resource.data.text.size() > 0;
+          allow update: if false;
+          allow delete: if false;
+        }
+      }
+
+      // typing indicators
+      match /typing/{uid} {
+        allow read:  if signedIn();
+        allow write: if isOwner(uid);
+      }
+
+      // original uploaded files
+      match /files/{fileId} {
+        allow read:   if signedIn();
+        allow create: if signedIn()
+          && request.resource.data.uploadedBy == request.auth.uid
+          && request.resource.data.path is string
+          && request.resource.data.name is string;
+        allow update: if false;
+        allow delete: if signedIn() && resource.data.uploadedBy == request.auth.uid;
+      }
+
+      // live file edits
+      match /fileContents/{fileId} {
         allow read:   if signedIn();
         allow create: if signedIn();
         allow update: if signedIn();
         allow delete: if false;
       }
-    }
-
-    // ── catch-all ─────────────────────────────────────────────────────────────
-    match /{document=**} {
-      allow read, write: if false;
     }
   }
 }

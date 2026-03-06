@@ -4,56 +4,222 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Create Room</title>
+  <style>
+    body { font-family: monospace; padding: 24px; max-width: 540px; }
+
+    #drop-zone {
+      border: 2px dashed #aaa;
+      padding: 32px;
+      text-align: center;
+      cursor: pointer;
+      margin: 12px 0;
+      border-radius: 6px;
+    }
+    #drop-zone.drag-over { border-color: #333; background: #f5f5f5; }
+    #drop-zone.has-files { border-color: #2d6a4f; }
+
+    #file-list { font-size: 12px; margin-top: 8px; max-height: 160px; overflow-y: auto; }
+    #file-list div { padding: 2px 0; }
+
+    #progress-bar-wrap { background: #eee; border-radius: 4px; height: 8px; margin: 8px 0; display: none; }
+    #progress-bar      { background: #333; height: 8px; border-radius: 4px; width: 0%; transition: width 0.2s; }
+
+    #msg { font-size: 13px; margin-top: 8px; min-height: 18px; }
+    #msg.error   { color: red; }
+    #msg.success { color: green; }
+
+    button { padding: 8px 16px; cursor: pointer; font-family: monospace; margin-top: 8px; }
+    input, textarea { padding: 7px 10px; font-family: monospace; width: 100%; box-sizing: border-box; margin-top: 4px; }
+    #folder-input { display: none; }
+  </style>
 </head>
 <body>
   <h2>Create a Room</h2>
 
-  <label>Room name</label><br/>
+  <label>Room name</label>
   <input id="room-name" type="text" placeholder="My Project"/><br/><br/>
 
-  <label>Channels (one per line)</label><br/>
+  <label>Channels (one per line)</label>
   <textarea id="channels-input" rows="5" placeholder="general&#10;css&#10;javascript"></textarea><br/><br/>
 
   <small>A unique Room ID will be generated automatically.</small><br/><br/>
 
+  <!-- ── Folder upload ── -->
+  <strong>Upload project folder</strong>
+  <em style="font-size:12px;color:#888">(optional)</em>
+
+  <div id="drop-zone">
+    <div id="drop-label">Drag &amp; drop a project folder here</div>
+    <div style="font-size:12px;color:#aaa;margin-top:4px">or</div>
+    <button id="btn-browse" type="button">Browse folder</button>
+    <input id="folder-input" type="file" webkitdirectory multiple/>
+  </div>
+
+  <div id="file-list"></div>
+  <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
+  <div id="msg"></div>
+
   <button id="btn-create">Create Room</button>
-  <p id="msg"></p>
 
   <script type="module">
-    import { createRoom }       from "./roomService.js";
-    import { waitForAuthReady } from "./session.js";
+    import { createRoom }                from "./roomService.js";
+    import { uploadFolder, formatBytes } from "./fileService.js";
+    import { waitForAuthReady }          from "./session.js";
 
+    let currentUser = null;
+    let stagedFiles = [];
+
+    // ── Auth ────────────────────────────────────────────────────────────────
     async function init() {
-      const user = await waitForAuthReady();
-      if (!user) { window.location.href = "/index.html"; return; }
+      currentUser = await waitForAuthReady();
+      if (!currentUser) { window.location.href = "/index.html"; return; }
+    }
 
-      document.getElementById("btn-create").onclick = async () => {
-        const roomName = document.getElementById("room-name").value.trim();
-        const channels = document.getElementById("channels-input").value
-          .split("\n").map(s => s.trim()).filter(Boolean);
+    // ── Drag & drop ─────────────────────────────────────────────────────────
+    const dropZone = document.getElementById("drop-zone");
 
-        if (!roomName)        { document.getElementById("msg").textContent = "Room name is required."; return; }
-        if (!channels.length) { document.getElementById("msg").textContent = "Add at least one channel."; return; }
+    dropZone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropZone.classList.add("drag-over");
+    });
 
-        document.getElementById("btn-create").disabled = true;
-        document.getElementById("msg").textContent = "Creating…";
+    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
 
-        const { roomId, error } = await createRoom({
-          roomName,
-          channels,
-          createdBy:   user.uid,
-          displayName: user.displayName ?? user.email,
+    dropZone.addEventListener("drop", async (e) => {
+      e.preventDefault();
+      dropZone.classList.remove("drag-over");
+      const entries = Array.from(e.dataTransfer.items)
+        .filter(i => i.kind === "file")
+        .map(i => i.webkitGetAsEntry?.())
+        .filter(Boolean);
+      stageFiles(await collectEntries(entries));
+    });
+
+    // ── Browse button ────────────────────────────────────────────────────────
+    document.getElementById("btn-browse").onclick = () =>
+      document.getElementById("folder-input").click();
+
+    document.getElementById("folder-input").addEventListener("change", (e) =>
+      stageFiles(Array.from(e.target.files)));
+
+    // ── Collect FileSystemEntry tree → flat File[] ────────────────────────────
+    async function collectEntries(entries) {
+      const files = [];
+      async function traverse(entry, path = "") {
+        if (entry.isFile) {
+          const file = await new Promise((res, rej) => entry.file(res, rej));
+          Object.defineProperty(file, "webkitRelativePath", {
+            value: path + file.name, writable: false,
+          });
+          files.push(file);
+        } else if (entry.isDirectory) {
+          const reader  = entry.createReader();
+          const readAll = () => new Promise((res, rej) => {
+            const all  = [];
+            const read = () => reader.readEntries((batch) => {
+              if (!batch.length) return res(all);
+              all.push(...batch);
+              read();
+            }, rej);
+            read();
+          });
+          for (const child of await readAll()) {
+            await traverse(child, path + entry.name + "/");
+          }
+        }
+      }
+      for (const entry of entries) await traverse(entry);
+      return files;
+    }
+
+    // ── Stage files (preview) ────────────────────────────────────────────────
+    function stageFiles(files) {
+      stagedFiles = files;
+      const listEl = document.getElementById("file-list");
+
+      if (!files.length) {
+        listEl.textContent = "No files found.";
+        dropZone.classList.remove("has-files");
+        return;
+      }
+
+      dropZone.classList.add("has-files");
+      document.getElementById("drop-label").textContent =
+        `${files.length} file${files.length !== 1 ? "s" : ""} selected`;
+
+      listEl.innerHTML = files.slice(0, 30).map(f =>
+        `<div>📄 ${f.webkitRelativePath || f.name} <span style="color:#aaa">(${formatBytes(f.size)})</span></div>`
+      ).join("") + (files.length > 30 ? `<div style="color:#aaa">…and ${files.length - 30} more</div>` : "");
+    }
+
+    // ── Create room ──────────────────────────────────────────────────────────
+    document.getElementById("btn-create").onclick = async () => {
+      const roomName = document.getElementById("room-name").value.trim();
+      const channels = document.getElementById("channels-input").value
+        .split("\n").map(s => s.trim()).filter(Boolean);
+
+      if (!roomName)        { setMsg("Room name is required.", "error"); return; }
+      if (!channels.length) { setMsg("Add at least one channel.", "error"); return; }
+
+      document.getElementById("btn-create").disabled = true;
+      setMsg("Creating room…", "");
+
+      // 1. Create the room
+      const { roomId, error } = await createRoom({
+        roomName,
+        channels,
+        createdBy:   currentUser.uid,
+        displayName: currentUser.displayName ?? currentUser.email,
+      });
+
+      if (error) {
+        setMsg(`Error: ${error}`, "error");
+        document.getElementById("btn-create").disabled = false;
+        return;
+      }
+
+      // 2. Upload files if staged
+      if (stagedFiles.length) {
+        setMsg(`Uploading ${stagedFiles.length} files…`, "");
+        document.getElementById("progress-bar-wrap").style.display = "block";
+
+        const { uploaded, skipped, error: uploadErr } = await uploadFolder({
+          roomId,
+          uid:   currentUser.uid,
+          files: stagedFiles,
+          onProgress: (done, total, currentFile) => {
+            document.getElementById("progress-bar").style.width =
+              Math.round(((done + 1) / total) * 100) + "%";
+            setMsg(`Uploading ${done + 1}/${total}: ${currentFile}`, "");
+          },
+          onError: (file, reason) => console.warn(`Skipped ${file.name}: ${reason}`),
         });
 
-        document.getElementById("btn-create").disabled = false;
+        document.getElementById("progress-bar").style.width = "100%";
 
-        if (error) {
-          document.getElementById("msg").textContent = `Error: ${error}`;
-        } else {
-          // Redirect to editor — creator lands directly in their new room
-          window.location.href = `/editor.html?room=${roomId}`;
+        if (uploadErr && !uploaded) {
+          setMsg(`Upload failed: ${uploadErr}`, "error");
+          document.getElementById("btn-create").disabled = false;
+          return;
         }
-      };
+
+        setMsg(
+          `✓ Room created! ${uploaded} file${uploaded !== 1 ? "s" : ""} uploaded` +
+          `${skipped ? `, ${skipped} skipped` : ""}. Entering room…`,
+          "success"
+        );
+      } else {
+        setMsg("✓ Room created! Entering…", "success");
+      }
+
+      // 3. Redirect to editor
+      setTimeout(() => { window.location.href = `/editor.html?room=${roomId}`; }, 800);
+    };
+
+    function setMsg(text, type) {
+      const el = document.getElementById("msg");
+      el.textContent = text;
+      el.className = type;
     }
 
     init();

@@ -3,44 +3,63 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Chat</title>
+  <title>Editor</title>
   <style>
-    /* boilerplate layout — frontend team replaces entirely */
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: monospace; display: flex; flex-direction: column; height: 100vh; }
+    body { font-family: monospace; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 
-    #header   { padding: 8px 12px; border-bottom: 1px solid #ccc; display: flex; align-items: center; gap: 12px; }
-    #main     { display: flex; flex: 1; overflow: hidden; }
+    /* ── Header ── */
+    #header { padding: 8px 12px; border-bottom: 1px solid #ccc; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 
-    /* sidebar */
-    #sidebar  { width: 180px; border-right: 1px solid #ccc; display: flex; flex-direction: column; padding: 8px; gap: 4px; overflow-y: auto; }
-    .ch-btn   { text-align: left; padding: 5px 8px; cursor: pointer; border: none; background: none; font-family: monospace; font-size: 13px; border-radius: 4px; }
+    /* ── Main 3-column layout ── */
+    #main { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Left sidebar: channels + members ── */
+    #sidebar-left { width: 160px; border-right: 1px solid #ccc; display: flex; flex-direction: column; padding: 8px; gap: 4px; overflow-y: auto; flex-shrink: 0; }
+    .ch-btn { text-align: left; padding: 5px 8px; cursor: pointer; border: none; background: none; font-family: monospace; font-size: 12px; border-radius: 4px; width: 100%; }
     .ch-btn.active { background: #eee; font-weight: bold; }
-    #members-section { margin-top: 12px; font-size: 11px; color: #888; }
-    #members-list    { font-size: 12px; margin-top: 4px; }
+    #members-section { margin-top: 12px; }
+    #members-list { font-size: 11px; margin-top: 4px; line-height: 1.8; }
 
-    /* chat area */
-    #chat-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-    #channel-header { padding: 6px 12px; border-bottom: 1px solid #eee; font-size: 13px; color: #555; }
-    #messages  { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
-
-    /* message bubbles */
-    .msg       { display: flex; gap: 8px; align-items: flex-start; }
-    .avatar    { width: 28px; height: 28px; border-radius: 50%; background: #ccc; flex-shrink: 0;
-                 display: flex; align-items: center; justify-content: center; font-size: 11px; overflow: hidden; }
+    /* ── Chat area (center) ── */
+    #chat-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid #ccc; min-width: 0; }
+    #channel-header { padding: 6px 12px; border-bottom: 1px solid #eee; font-size: 13px; color: #555; flex-shrink: 0; }
+    #messages { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .msg { display: flex; gap: 8px; align-items: flex-start; }
+    .avatar { width: 26px; height: 26px; border-radius: 50%; background: #ccc; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; overflow: hidden; }
     .avatar img { width: 100%; height: 100%; object-fit: cover; }
-    .msg-body  { display: flex; flex-direction: column; gap: 2px; }
-    .msg-meta  { font-size: 11px; color: #888; }
+    .msg-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .msg-meta { font-size: 11px; color: #888; }
     .msg-meta strong { color: #333; margin-right: 6px; }
-    .msg-text  { font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
-
-    /* input row */
-    #input-area  { padding: 8px 12px; border-top: 1px solid #ccc; display: flex; flex-direction: column; gap: 4px; }
+    .msg-text { font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+    #input-area { padding: 8px 12px; border-top: 1px solid #ccc; display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
     #typing-indicator { font-size: 11px; color: #888; min-height: 14px; }
-    #input-row   { display: flex; gap: 6px; }
-    #msg-input   { flex: 1; padding: 7px 10px; font-family: monospace; font-size: 13px;
-                   border: 1px solid #ccc; border-radius: 4px; resize: none; }
-    #btn-send    { padding: 7px 14px; cursor: pointer; font-family: monospace; font-size: 13px; }
+    #input-row { display: flex; gap: 6px; }
+    #msg-input { flex: 1; padding: 7px 10px; font-family: monospace; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; resize: none; }
+    #btn-send { padding: 7px 14px; cursor: pointer; font-family: monospace; font-size: 13px; }
+
+    /* ── Right panel: file explorer + code editor ── */
+    #panel-right { width: 420px; display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; }
+
+    /* file explorer */
+    #file-explorer { border-bottom: 1px solid #ccc; display: flex; flex-direction: column; }
+    #file-explorer-header { padding: 6px 10px; font-size: 11px; color: #888; border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    #file-tree { overflow-y: auto; max-height: 200px; }
+    .file-item { padding: 4px 10px; font-size: 12px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .file-item:hover { background: #f5f5f5; }
+    .file-item.active { background: #eee; font-weight: bold; }
+    .file-item.folder { color: #888; cursor: default; font-size: 11px; padding: 6px 10px 2px; }
+    #no-files { padding: 12px 10px; font-size: 12px; color: #aaa; }
+
+    /* code editor */
+    #code-editor-section { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    #code-editor-header { padding: 6px 10px; font-size: 11px; color: #555; border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    #code-editor { flex: 1; width: 100%; border: none; outline: none; padding: 10px; font-family: monospace; font-size: 13px; line-height: 1.6; resize: none; background: #fafafa; overflow-y: auto; }
+    #code-editor:disabled { color: #aaa; background: #f5f5f5; }
+    #code-status { font-size: 11px; color: #aaa; }
+
+    label { font-size: 11px; color: #888; }
+    button { cursor: pointer; font-family: monospace; }
   </style>
 </head>
 <body>
@@ -56,17 +75,17 @@
 
   <div id="main">
 
-    <!-- ── Sidebar: channels + members ── -->
-    <div id="sidebar">
-      <div style="font-size:11px;color:#888;margin-bottom:4px">CHANNELS</div>
+    <!-- ── Left sidebar ── -->
+    <div id="sidebar-left">
+      <div style="font-size:11px;color:#888;margin-bottom:2px">CHANNELS</div>
       <div id="channel-list"></div>
       <div id="members-section">
-        <div>ONLINE</div>
+        <div style="font-size:11px;color:#888">ONLINE</div>
         <div id="members-list"></div>
       </div>
     </div>
 
-    <!-- ── Chat area ── -->
+    <!-- ── Chat ── -->
     <div id="chat-area">
       <div id="channel-header"># …</div>
       <div id="messages"></div>
@@ -79,24 +98,55 @@
       </div>
     </div>
 
+    <!-- ── Right panel: files + code editor ── -->
+    <div id="panel-right">
+
+      <!-- File explorer -->
+      <div id="file-explorer">
+        <div id="file-explorer-header">
+          <span>FILES</span>
+          <span id="file-count" style="color:#aaa"></span>
+        </div>
+        <div id="file-tree">
+          <div id="no-files">No files uploaded.</div>
+        </div>
+      </div>
+
+      <!-- Code editor -->
+      <div id="code-editor-section">
+        <div id="code-editor-header">
+          <span id="open-file-name" style="color:#aaa">No file open</span>
+          <span id="code-status"></span>
+        </div>
+        <textarea id="code-editor" disabled placeholder="Select a file to edit…"></textarea>
+      </div>
+
+    </div>
   </div>
 
   <script type="module">
-    import { getRoom, subscribeToMembers, leaveRoom } from "./roomService.js";
+    import { getRoom, subscribeToMembers, leaveRoom }        from "./roomService.js";
     import { sendMessage, subscribeToMessages,
-             setTyping, clearTyping, subscribeToTyping } from "./chatService.js";
-    import { waitForAuthReady } from "./session.js";
+             setTyping, clearTyping, subscribeToTyping }     from "./chatService.js";
+    import { subscribeToFiles, updateFileContent,
+             subscribeToFileContent }                        from "./fileService.js";
+    import { waitForAuthReady }                              from "./session.js";
 
     // ── State ──────────────────────────────────────────────────────────────
-    const params   = new URLSearchParams(window.location.search);
-    const roomId   = params.get("room")?.trim().toUpperCase();
+    const params  = new URLSearchParams(window.location.search);
+    const roomId  = params.get("room")?.trim().toUpperCase();
 
-    let currentUser     = null;
-    let activeChannel   = null;   // { id, name }
-    let unsubMessages   = null;
-    let unsubTyping     = null;
-    let unsubMembers    = null;
-    let typingTimer     = null;   // auto-clear typing after 3s of no keypress
+    let currentUser       = null;
+    let activeChannel     = null;
+    let activeFile        = null;   // { id, name, path, content, language }
+    let unsubMessages     = null;
+    let unsubTyping       = null;
+    let unsubMembers      = null;
+    let unsubFiles        = null;
+    let unsubFileContent  = null;
+    let chatTypingTimer   = null;
+    let codeDebounceTimer = null;
+    let suppressCodeEcho  = false;
 
     if (!roomId) {
       document.body.innerHTML = `<p>No room ID. <a href="/join-room.html">Join a room</a>.</p>`;
@@ -118,7 +168,6 @@
       document.getElementById("room-id-display").textContent   = roomId;
       document.title = room.name;
 
-      // Copy buttons
       document.getElementById("btn-copy").onclick = () => {
         navigator.clipboard.writeText(roomId);
         document.getElementById("btn-copy").textContent = "Copied!";
@@ -140,6 +189,9 @@
           members.map(m => m.displayName).join("\n");
       });
 
+      // Files — live subscribe so newly uploaded files appear instantly
+      unsubFiles = subscribeToFiles(roomId, renderFileTree);
+
       // Leave
       document.getElementById("btn-leave").onclick = async () => {
         cleanup();
@@ -148,7 +200,124 @@
       };
     }
 
-    // ── Channel list ──────────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════
+    // FILE EXPLORER
+    // ══════════════════════════════════════════════════════════════════════
+
+    function renderFileTree(files) {
+      const tree   = document.getElementById("file-tree");
+      const noFile = document.getElementById("no-files");
+
+      document.getElementById("file-count").textContent = files.length ? `${files.length} files` : "";
+
+      if (!files.length) {
+        tree.innerHTML = "";
+        tree.appendChild(noFile);
+        return;
+      }
+
+      // Group files by top-level folder
+      const grouped = {};
+      files.forEach(f => {
+        const parts  = f.path.split("/");
+        const folder = parts.length > 1 ? parts[0] : "";
+        if (!grouped[folder]) grouped[folder] = [];
+        grouped[folder].push(f);
+      });
+
+      tree.innerHTML = "";
+
+      Object.entries(grouped).forEach(([folder, folderFiles]) => {
+        // Folder label
+        if (folder) {
+          const folderEl = document.createElement("div");
+          folderEl.className   = "file-item folder";
+          folderEl.textContent = `📁 ${folder}`;
+          tree.appendChild(folderEl);
+        }
+
+        folderFiles.forEach(file => {
+          const item = document.createElement("div");
+          item.className   = "file-item";
+          item.textContent = (folder ? "  " : "") + "📄 " + file.name;
+          item.title       = file.path;
+          item.dataset.id  = file.id;
+
+          if (activeFile?.id === file.id) item.classList.add("active");
+
+          item.onclick = () => openFile(file);
+          tree.appendChild(item);
+        });
+      });
+    }
+
+    // ── Open a file in the code editor ────────────────────────────────────
+    function openFile(file) {
+      // Tear down previous file subscription
+      if (unsubFileContent) unsubFileContent();
+
+      activeFile = file;
+
+      // Update active state in tree
+      document.querySelectorAll(".file-item").forEach(el =>
+        el.classList.toggle("active", el.dataset.id === file.id));
+
+      document.getElementById("open-file-name").textContent = file.path;
+      document.getElementById("code-status").textContent    = "Loading…";
+
+      const editor = document.getElementById("code-editor");
+      editor.disabled = false;
+
+      // Subscribe to live edits — falls back to original content if no edits yet
+      unsubFileContent = subscribeToFileContent(roomId, file.id, (liveData) => {
+        const newContent = liveData ? liveData.content : file.content;
+
+        // Don't overwrite local edits with our own echo
+        if (suppressCodeEcho && liveData?.editedBy === currentUser.uid) {
+          suppressCodeEcho = false;
+          return;
+        }
+
+        if (editor.value !== newContent) {
+          const pos = editor.selectionStart;
+          editor.value = newContent;
+          editor.selectionStart = editor.selectionEnd = pos;
+        }
+
+        document.getElementById("code-status").textContent =
+          liveData
+            ? (liveData.editedBy === currentUser.uid ? "Saved" : `Edited by ${liveData.editedBy}`)
+            : "Original";
+      });
+    }
+
+    // ── Code editor input → Firestore (debounced 300ms) ───────────────────
+    document.getElementById("code-editor").addEventListener("input", () => {
+      if (!activeFile) return;
+      document.getElementById("code-status").textContent = "Typing…";
+
+      clearTimeout(codeDebounceTimer);
+      codeDebounceTimer = setTimeout(async () => {
+        suppressCodeEcho = true;
+        const { error } = await updateFileContent({
+          roomId,
+          fileId:  activeFile.id,
+          content: document.getElementById("code-editor").value,
+          uid:     currentUser.uid,
+        });
+        if (error) {
+          document.getElementById("code-status").textContent = `Error: ${error}`;
+          suppressCodeEcho = false;
+        } else {
+          document.getElementById("code-status").textContent = "Saved";
+        }
+      }, 300);
+    });
+
+    // ══════════════════════════════════════════════════════════════════════
+    // CHAT
+    // ══════════════════════════════════════════════════════════════════════
+
     function renderChannelList(channels) {
       const list = document.getElementById("channel-list");
       list.innerHTML = "";
@@ -163,63 +332,50 @@
     }
 
     function selectChannel(ch) {
-      // Tear down previous subscriptions
       if (unsubMessages) unsubMessages();
       if (unsubTyping)   unsubTyping();
 
       activeChannel = ch;
 
-      // Update active state
       document.querySelectorAll(".ch-btn").forEach(b =>
         b.classList.toggle("active", b.dataset.id === ch.id));
-      document.getElementById("channel-header").textContent = `# ${ch.name}`;
-      document.getElementById("msg-input").placeholder = `Message #${ch.name}`;
-      document.getElementById("messages").innerHTML = "";
+      document.getElementById("channel-header").textContent   = `# ${ch.name}`;
+      document.getElementById("msg-input").placeholder        = `Message #${ch.name}`;
+      document.getElementById("messages").innerHTML           = "";
       document.getElementById("typing-indicator").textContent = "";
 
-      // Subscribe to messages
       unsubMessages = subscribeToMessages(roomId, ch.id, renderMessages);
-
-      // Subscribe to typing
-      unsubTyping = subscribeToTyping(roomId, currentUser.uid, (typers) => {
+      unsubTyping   = subscribeToTyping(roomId, currentUser.uid, (typers) => {
         const el = document.getElementById("typing-indicator");
-        if (!typers.length) { el.textContent = ""; return; }
-        el.textContent = typers.length === 1
-          ? `${typers[0]} is typing…`
-          : `${typers.slice(0, -1).join(", ")} and ${typers.at(-1)} are typing…`;
+        el.textContent = !typers.length ? "" :
+          typers.length === 1 ? `${typers[0]} is typing…` :
+          `${typers.slice(0,-1).join(", ")} and ${typers.at(-1)} are typing…`;
       });
     }
 
-    // ── Render messages ───────────────────────────────────────────────────
     function renderMessages(messages) {
       const container = document.getElementById("messages");
       container.innerHTML = "";
-
       messages.forEach((msg) => {
-        const el = document.createElement("div");
-        el.className = "msg";
+        const el      = document.createElement("div");
+        el.className  = "msg";
 
-        // Avatar — show image if URL exists, else initials
-        const avatarEl = document.createElement("div");
+        const avatarEl    = document.createElement("div");
         avatarEl.className = "avatar";
         if (msg.senderAvatar) {
           const img = document.createElement("img");
-          img.src = msg.senderAvatar;
-          img.alt = msg.senderName;
+          img.src = msg.senderAvatar; img.alt = msg.senderName;
           avatarEl.appendChild(img);
         } else {
           avatarEl.textContent = (msg.senderName?.[0] ?? "?").toUpperCase();
         }
 
-        // Message body
-        const body = document.createElement("div");
+        const body     = document.createElement("div");
         body.className = "msg-body";
-
-        const meta = document.createElement("div");
+        const meta     = document.createElement("div");
         meta.className = "msg-meta";
         meta.innerHTML = `<strong>${escapeHtml(msg.senderName)}</strong>${formatTime(msg.createdAt)}`;
-
-        const text = document.createElement("div");
+        const text     = document.createElement("div");
         text.className = "msg-text";
         text.textContent = msg.text;
 
@@ -229,20 +385,15 @@
         el.appendChild(body);
         container.appendChild(el);
       });
-
-      // Scroll to bottom
       container.scrollTop = container.scrollHeight;
     }
 
-    // ── Send message ──────────────────────────────────────────────────────
     async function handleSend() {
       const input = document.getElementById("msg-input");
       const text  = input.value.trim();
       if (!text || !activeChannel) return;
-
       input.value = "";
       input.style.height = "auto";
-
       const { error } = await sendMessage({
         roomId,
         channelId:    activeChannel.id,
@@ -251,62 +402,37 @@
         senderName:   currentUser.displayName ?? currentUser.email,
         senderAvatar: currentUser.photoURL ?? null,
       });
-
       if (error) console.error("[editor] sendMessage:", error);
     }
 
-    // Send on Enter (Shift+Enter = newline)
     document.getElementById("msg-input").addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        handleSend();
-      }
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
     });
-
     document.getElementById("btn-send").onclick = handleSend;
 
-    // ── Typing indicator ──────────────────────────────────────────────────
     document.getElementById("msg-input").addEventListener("input", async () => {
       if (!activeChannel) return;
-
-      // Auto-resize textarea
       const el = document.getElementById("msg-input");
       el.style.height = "auto";
       el.style.height = Math.min(el.scrollHeight, 120) + "px";
-
-      // Set typing
-      await setTyping({
-        roomId,
-        uid:         currentUser.uid,
-        displayName: currentUser.displayName ?? currentUser.email,
-      });
-
-      // Auto-clear after 3s of no typing
-      clearTimeout(typingTimer);
-      typingTimer = setTimeout(() => {
-        clearTyping({ roomId, uid: currentUser.uid });
-      }, 3000);
+      await setTyping({ roomId, uid: currentUser.uid, displayName: currentUser.displayName ?? currentUser.email });
+      clearTimeout(chatTypingTimer);
+      chatTypingTimer = setTimeout(() => clearTyping({ roomId, uid: currentUser.uid }), 3000);
     });
 
-    // Clear typing on blur
-    document.getElementById("msg-input").addEventListener("blur", () => {
-      clearTyping({ roomId, uid: currentUser.uid });
-    });
+    document.getElementById("msg-input").addEventListener("blur", () =>
+      clearTyping({ roomId, uid: currentUser.uid }));
 
     // ── Helpers ───────────────────────────────────────────────────────────
     function formatTime(date) {
-      if (!date) return "";
-      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return date ? date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
     }
-
     function escapeHtml(str) {
       return (str ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
     }
-
     function cleanup() {
-      if (unsubMessages) unsubMessages();
-      if (unsubTyping)   unsubTyping();
-      if (unsubMembers)  unsubMembers();
+      [unsubMessages, unsubTyping, unsubMembers, unsubFiles, unsubFileContent]
+        .forEach(u => u?.());
     }
 
     window.addEventListener("beforeunload", () => {
