@@ -1,59 +1,20 @@
-# Firebase Chat
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+</div>
 
-Real-time collaborative chat + code editor built on Firebase.
+# Run and deploy your AI Studio app
 
-## Structure
+This contains everything you need to run your app locally.
 
-```
-src/
-├── firebase/
-│   ├── firebase.js       # App init — exports auth, db
-│   ├── auth.js           # Email, GitHub, Google sign-in/up
-│   ├── userService.js    # Firestore user profiles
-│   ├── roomService.js    # Room create, join, leave
-│   ├── chatService.js    # Messages + typing indicators
-│   └── fileService.js    # File upload + live code editing
-├── session.js            # Auth state listener, session persistence
-└── pages/
-    ├── index.html        # Login
-    ├── signup.html       # Register
-    ├── create-room.html  # Create room + upload project folder
-    ├── join-room.html    # Join by room ID
-    └── editor.html       # Chat + live file editor
+View your app in AI Studio: https://ai.studio/apps/1a46a2d6-b2b0-41b3-a630-13561ebb5c42
 
-rules/
-└── firestore.rules       # Security rules
+## Run Locally
 
-vite.config.js
-firebase.json
-.env.example
-```
+**Prerequisites:**  Node.js
 
-## Setup
 
-```bash
-# 1. Install dependencies
-npm install
-
-# 2. Copy and fill in Firebase config
-cp .env.example .env.local
-
-# 3. Start dev server
-npm run dev
-
-# 4. Deploy rules
-firebase deploy --only firestore:rules
-
-# 5. Deploy app
-npm run deploy
-```
-
-## Page Flow
-
-```
-index.html (login)
-    └── editor.html?room=XXXX
-            ↑
-create-room.html ──→ (auto redirect after creation)
-join-room.html   ──→ (redirect after joining)
-```
+1. Install dependencies:
+   `npm install`
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
+   `npm run dev`
