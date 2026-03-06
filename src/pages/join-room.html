@@ -18,8 +18,8 @@
   <a href="/create-room.html">Create a new room instead</a>
 
   <script type="module">
-    import { joinRoom }         from "./roomService.js";
-    import { waitForAuthReady } from "./session.js";
+    import { joinRoom }         from "../firebase/roomService.js";
+    import { waitForAuthReady } from "../session.js";
 
     async function init() {
       const user = await waitForAuthReady();

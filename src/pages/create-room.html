@@ -62,9 +62,9 @@
   <button id="btn-create">Create Room</button>
 
   <script type="module">
-    import { createRoom }                from "./roomService.js";
-    import { uploadFolder, formatBytes } from "./fileService.js";
-    import { waitForAuthReady }          from "./session.js";
+    import { createRoom }                from "../firebase/roomService.js";
+    import { uploadFolder, formatBytes } from "../firebase/fileService.js";
+    import { waitForAuthReady }          from "../session.js";
 
     let currentUser = null;
     let stagedFiles = [];

@@ -23,7 +23,7 @@
   <p id="msg"></p>
 
   <script type="module">
-    import { signUpWithEmail, signInWithGitHub, signInWithGoogle } from "./auth.js";
+    import { signUpWithEmail, signInWithGitHub, signInWithGoogle } from "../firebase/auth.js";
 
     const msg = (text) => document.getElementById("msg").textContent = text;
 

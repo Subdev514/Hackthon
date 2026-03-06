@@ -125,12 +125,12 @@
   </div>
 
   <script type="module">
-    import { getRoom, subscribeToMembers, leaveRoom }        from "./roomService.js";
+    import { getRoom, subscribeToMembers, leaveRoom }        from "../firebase/roomService.js";
     import { sendMessage, subscribeToMessages,
-             setTyping, clearTyping, subscribeToTyping }     from "./chatService.js";
+             setTyping, clearTyping, subscribeToTyping }     from "../firebase/chatService.js";
     import { subscribeToFiles, updateFileContent,
-             subscribeToFileContent }                        from "./fileService.js";
-    import { waitForAuthReady }                              from "./session.js";
+             subscribeToFileContent }                        from "../firebase/fileService.js";
+    import { waitForAuthReady }                              from "../session.js";
 
     // ── State ──────────────────────────────────────────────────────────────
     const params  = new URLSearchParams(window.location.search);

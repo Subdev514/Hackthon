@@ -20,8 +20,8 @@ import {
   setPersistence,
 } from "firebase/auth";
 
-import { auth }           from "./firebase.js";
-import { getUserProfile } from "./userService.js";
+import { auth }           from "./firebase/firebase.js";
+import { getUserProfile } from "./firebase/userService.js";
 
 // ── Ensure LOCAL persistence is explicitly set ────────────────────────────────
 // (Firebase defaults to LOCAL, but being explicit avoids surprises when the
