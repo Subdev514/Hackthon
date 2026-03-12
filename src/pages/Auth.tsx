@@ -82,7 +82,7 @@ export default function Auth() {
             <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
               <Zap size={24} className="text-black fill-current" />
             </div>
-            <span className="text-2xl font-bold tracking-tight">DebugFlow</span>
+            <span className="text-2xl font-bold tracking-tight">DevChat</span>
           </Link>
           <h1 className="text-3xl font-bold mb-3">
             {mode === 'login' ? 'Welcome back' : mode === 'signup' ? 'Create your account' : 'Reset password'}

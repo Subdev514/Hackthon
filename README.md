@@ -1,20 +1,89 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Firebase Chat/Dechat
 
-# Run and deploy your AI Studio app
+Real-time collaborative chat + code editor built on Firebase.
+AI powered developer collaboration platform built during Hackathon.
 
-This contains everything you need to run your app locally.
+## Structure
 
-View your app in AI Studio: https://ai.studio/apps/1a46a2d6-b2b0-41b3-a630-13561ebb5c42
+```
+src/
+├── firebase/
+│   ├── firebase.js       # App init — exports auth, db
+│   ├── auth.js           # Email, GitHub, Google sign-in/up
+│   ├── userService.js    # Firestore user profiles
+│   ├── roomService.js    # Room create, join, leave
+│   ├── chatService.js    # Messages + typing indicators
+│   └── fileService.js    # File upload + live code editing
+├── session.js            # Auth state listener, session persistence
+└── pages/
+    ├── index.html        # Login
+    ├── signup.html       # Register
+    ├── create-room.html  # Create room + upload project folder
+    ├── join-room.html    # Join by room ID
+    └── editor.html       # Chat + live file editor
 
-## Run Locally
+rules/
+└── firestore.rules       # Security rules
 
-**Prerequisites:**  Node.js
+vite.config.js
+firebase.json
+.env.example
+```
 
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+
+## Page Flow
+
+```
+index.html (login)
+    └── editor.html?room=XXXX
+            ↑
+create-room.html ──→ (auto redirect after creation)
+join-room.html   ──→ (redirect after joining)
+```
+
+
+
+
+## Features
+
+- Real-time developer chat
+- AI code assistant
+- Firebase authentication
+- Room based collaboration
+
+## Tech Stack
+
+Frontend:
+- React
+Backend:
+- Firebase
+- Firestore
+
+## Installation
+
+Clone repo
+
+git clone https://github.com/username/devchat.git
+
+Install dependencies:
+npm install
+Run project:
+npm run dev
+
+## Folder Structure
+
+src/
+pages/
+firebase/
+components/
+
+## Future Improvements
+
+- UI improvements
+- authentication system
+- AI chat assistant
+- deployment
+
+## Team
+Hackathon Team DevChat

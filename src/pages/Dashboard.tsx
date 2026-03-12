@@ -59,7 +59,7 @@ export default function Dashboard() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
-  const displayName = profile?.displayName ?? user?.displayName ?? 'there';
+  const displayName = user?.displayName ?? profile?.displayName ?? user?.email?.split('@')[0] ?? 'there';
   const firstName = displayName.split(' ')[0];
 
   useEffect(() => {

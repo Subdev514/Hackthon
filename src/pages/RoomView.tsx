@@ -45,7 +45,7 @@ export default function RoomView() {
   // AI state
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState<string | null>(null);
-  const [codeSnippet, setCodeSnippet] = useState(`import { auth } from "@debugflow/core";
+  const [codeSnippet, setCodeSnippet] = useState(`import { auth } from "@Devchat/core";
 
 const validateSession = async (token: string) => {
   try {
@@ -310,13 +310,13 @@ const validateSession = async (token: string) => {
                 className="h-full bg-black/50 p-6 font-mono text-sm text-zinc-300"
               >
                 <div className="space-y-2">
-                  <p className="text-emerald-400">user@debugflow:~/room$ <span className="text-white">npm run dev</span></p>
+                  <p className="text-emerald-400">user@Devchat:~/room$ <span className="text-white">npm run dev</span></p>
                   <p className="text-zinc-500">{'['}vite{']'} server started at http://localhost:3000</p>
                   <p className="text-zinc-500">{'['}auth{']'} Initializing Redis connection...</p>
                   <p className="text-red-400">{'['}error{']'} Redis connection failed: Connection timeout</p>
                   <p className="text-zinc-500">{'['}auth{']'} Retrying in 5s...</p>
                   <div className="flex gap-2">
-                    <span className="text-emerald-400">user@debugflow:~/room$</span>
+                    <span className="text-emerald-400">user@Devchat:~/room$</span>
                     <span className="w-2 h-5 bg-zinc-500 animate-pulse" />
                   </div>
                 </div>

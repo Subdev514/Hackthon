@@ -54,7 +54,7 @@ export default function LandingPage() {
               <span className="gradient-text">AI-powered</span> collaboration.
             </h1>
             <p className="text-xl text-zinc-400 max-w-2xl mx-auto mb-12 leading-relaxed">
-              DebugFlow brings your team together with a shared code editor, real-time chat, and an AI assistant that understands your codebase.
+              Devchat brings your team together with a shared code editor, real-time chat, and an AI assistant that understands your codebase.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link to="/dashboard" className="btn-primary text-lg px-8">
@@ -90,7 +90,7 @@ export default function LandingPage() {
                   </div>
                 </div>
                 <div className="col-span-9 font-mono text-sm text-zinc-400 space-y-2">
-                  <p className="text-emerald-400">import {'{'} auth {'}'} from "@debugflow/core";</p>
+                  <p className="text-emerald-400">import {'{'} auth {'}'} from "@Devchat/core";</p>
                   <p>const validateSession = async (token: string) ={'>'} {'{'}</p>
                   <p className="pl-4">try {'{'}</p>
                   <p className="pl-8 text-indigo-400">// AI Suggestion: Check Redis cache first</p>
@@ -156,7 +156,7 @@ export default function LandingPage() {
               <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
                 <Zap size={20} className="text-black fill-current" />
               </div>
-              <span className="text-xl font-bold tracking-tight">DebugFlow</span>
+              <span className="text-xl font-bold tracking-tight">Devchat</span>
             </div>
             <p className="text-zinc-400 max-w-sm mb-8">
               The world's first AI-native debugging platform. Built by engineers, for engineers.
@@ -186,7 +186,7 @@ export default function LandingPage() {
           </div>
         </div>
         <div className="max-w-7xl mx-auto mt-20 pt-8 border-t border-white/5 flex flex-col md:row items-center justify-between gap-4 text-sm text-zinc-500">
-          <p>© 2024 DebugFlow Inc. All rights reserved.</p>
+          <p>© 2024 Devchat Inc. All rights reserved.</p>
           <div className="flex gap-8">
             <a href="#" className="hover:text-white transition-colors">Terms of Service</a>
             <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>

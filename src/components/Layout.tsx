@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -9,7 +9,6 @@ import {
   Bell,
   Search,
   Zap,
-  Loader2,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
@@ -42,7 +41,7 @@ export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
-
+const [showNotifications, setShowNotifications] = useState(false);
   const displayName = profile?.displayName ?? user?.displayName ?? 'User';
   const avatarUrl =
     profile?.avatarUrl ?? user?.photoURL ?? `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=10B981&color=000&bold=true`;
@@ -65,7 +64,7 @@ export default function Layout() {
 
         <nav className="flex-1 space-y-2">
           <SidebarLink to="/dashboard" icon={LayoutDashboard} label="Dashboard" active={location.pathname === '/dashboard'} />
-          <SidebarLink to="/dashboard" icon={MessageSquare} label="Rooms" active={location.pathname.startsWith('/room')} />
+         <SidebarLink to="/dashboard" icon={MessageSquare} label="Rooms" active={location.pathname === '/dashboard' || location.pathname.startsWith('/room')} />
           <SidebarLink to="/analytics" icon={BarChart3} label="Analytics" active={location.pathname === '/analytics'} />
           <SidebarLink to="/settings" icon={Settings} label="Settings" active={location.pathname === '/settings'} />
         </nav>
@@ -97,23 +96,42 @@ export default function Layout() {
           </div>
 
           <div className="flex items-center gap-6">
-            <button className="p-2 text-zinc-400 hover:text-white transition-colors relative">
-              <Bell size={20} />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-emerald-500 rounded-full border-2 border-dark-bg" />
-            </button>
-            <div className="flex items-center gap-3 pl-6 border-l border-dark-border">
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-semibold">{displayName}</p>
-                <p className="text-xs text-zinc-500 capitalize">{profile?.provider ?? 'member'}</p>
-              </div>
-              <img
-                src={avatarUrl}
-                alt={displayName}
-                className="w-10 h-10 rounded-full border-2 border-emerald-500/20 object-cover"
-                referrerPolicy="no-referrer"
-              />
-            </div>
-          </div>
+  <div className="relative">
+    <button 
+      onClick={() => setShowNotifications(prev => !prev)}
+      className="p-2 text-zinc-400 hover:text-white transition-colors relative"
+    >
+      <Bell size={20} />
+      <span className="absolute top-2 right-2 w-2 h-2 bg-emerald-500 rounded-full border-2 border-dark-bg" />
+    </button>
+
+    {showNotifications && (
+      <div className="absolute right-0 top-12 w-80 bg-dark-surface border border-dark-border rounded-2xl shadow-2xl z-50 overflow-hidden">
+        <div className="p-4 border-b border-dark-border flex items-center justify-between">
+          <h3 className="font-bold text-sm">Notifications</h3>
+          <button className="text-xs text-emerald-400 hover:underline">Mark all read</button>
+        </div>
+        <div className="p-2 max-h-80 overflow-y-auto">
+          <p className="text-zinc-500 text-sm text-center py-8">No notifications yet</p>
+        </div>
+      </div>
+    )}
+  </div>
+
+  <div className="flex items-center gap-3 pl-6 border-l border-dark-border">
+    <div className="text-right hidden sm:block">
+      <p className="text-sm font-semibold">{displayName}</p>
+      <p className="text-xs text-zinc-500 capitalize">{profile?.provider ?? 'member'}</p>
+    </div>
+    <img
+      src={avatarUrl}
+      alt={displayName}
+      className="w-10 h-10 rounded-full border-2 border-emerald-500/20 object-cover"
+      referrerPolicy="no-referrer"
+    />
+  </div>
+</div>
+
         </header>
 
         {/* Page Content */}
