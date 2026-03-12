@@ -22,7 +22,7 @@ export default function LandingPage() {
           <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
             <Zap size={20} className="text-black fill-current" />
           </div>
-          <span className="text-xl font-bold tracking-tight">DebugFlow</span>
+          <span className="text-xl font-bold tracking-tight">DevChat</span>
         </div>
         <div className="hidden md:flex items-center gap-8 text-sm font-medium text-zinc-400">
           <a href="#features" className="hover:text-white transition-colors">Features</a>
