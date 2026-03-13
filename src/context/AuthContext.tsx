@@ -24,10 +24,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (!authUser) {
                 setState({ user: null, profile: null, loading: false });
                 return;
+
             }
+            // it will show immediately no waiting//
+            setState({ user: authUser, profile:null, loading:false});
+            try{
             // Fetch Firestore profile alongside auth user
             const { profile } = await getUserProfile(authUser.uid);
-            setState({ user: authUser, profile, loading: false });
+            setState(prev => ({...prev, profile })); 
+            }
+            catch (error){
+                console.warn('cloud not load profile:', error);
+
+            }
         });
         return unsubscribe;
     }, []);
