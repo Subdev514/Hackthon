@@ -34,7 +34,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setState(prev => ({...prev, profile })); 
             }
             catch (error){
-                console.warn('cloud not load profile:', error);
+                console.warn('cloud not load profile:',error);
 
             }
         });
