@@ -24,7 +24,7 @@ export default defineConfig(({ mode }) => {
       hmr: process.env.DISABLE_HMR !== 'true',
     },
     preview: {
-      allowedHosts: 'all',
+      allowedHosts: true,
     },
   };
 });
