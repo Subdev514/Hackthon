@@ -288,7 +288,7 @@ export default function RoomView() {
     const compilerId = compilerMap[language] || 'gcc-15';
 
     try {
-      const res = await fetch('https://corsproxy.io/?url=' + encodeURIComponent('https://api.onlinecompiler.io/api/run-code-sync/'), {
+      const res = await fetch('/compiler-api/api/run-code-sync/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
