@@ -43,6 +43,38 @@ export default function Layout() {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
 
+  const [sidebarWidth, setSidebarWidth] = React.useState(() => {
+    const saved = localStorage.getItem('sidebar_width');
+    return saved ? parseInt(saved, 10) : 256;
+  });
+  const isResizingRef = React.useRef(false);
+
+  const startResizing = React.useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizingRef.current = true;
+  }, []);
+
+  const stopResizing = React.useCallback(() => {
+    isResizingRef.current = false;
+  }, []);
+
+  const resize = React.useCallback((e: MouseEvent) => {
+    if (isResizingRef.current) {
+      const newWidth = Math.min(Math.max(180, e.clientX), 400);
+      setSidebarWidth(newWidth);
+      localStorage.setItem('sidebar_width', String(newWidth));
+    }
+  }, []);
+
+  React.useEffect(() => {
+    window.addEventListener('mousemove', resize);
+    window.addEventListener('mouseup', stopResizing);
+    return () => {
+      window.removeEventListener('mousemove', resize);
+      window.removeEventListener('mouseup', stopResizing);
+    };
+  }, [resize, stopResizing]);
+
   const displayName = profile?.displayName ?? user?.displayName ?? 'User';
   const avatarUrl =
     profile?.avatarUrl ?? user?.photoURL ?? `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=10B981&color=000&bold=true`;
@@ -55,7 +87,17 @@ export default function Layout() {
   return (
     <div className="flex h-screen bg-dark-bg overflow-hidden">
       {/* Sidebar */}
-      <aside className="w-64 border-r border-dark-border flex flex-col p-4 bg-dark-surface/50 backdrop-blur-xl">
+      <aside
+        style={{ width: `${sidebarWidth}px` }}
+        className="border-r border-dark-border flex flex-col p-4 bg-dark-surface/50 backdrop-blur-xl relative shrink-0"
+      >
+        {/* Resize Handle */}
+        <div
+          onMouseDown={startResizing}
+          className="absolute top-0 right-0 w-[4px] h-full cursor-col-resize hover:bg-emerald-500/40 active:bg-emerald-500/60 transition-colors z-50 flex items-center justify-center"
+        >
+          <div className="w-[1.5px] h-8 bg-zinc-700/65 rounded" />
+        </div>
         <div className="flex items-center gap-3 px-4 mb-8">
           <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
             <Zap size={20} className="text-black fill-current" />

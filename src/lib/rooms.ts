@@ -26,6 +26,8 @@ export interface Room {
     channels: Channel[];
     createdBy: string;
     createdAt?: any;
+    password?: string;
+    hasPassword?: boolean;
 }
 
 function generateRoomId(): string {
@@ -40,8 +42,9 @@ export async function createRoom(opts: {
     channels: string[];
     createdBy: string;
     displayName: string;
+    password?: string;
 }): Promise<{ roomId: string | null; error: string | null }> {
-    const { roomName, channels, createdBy, displayName } = opts;
+    const { roomName, channels, createdBy, displayName, password } = opts;
     try {
         const channelList: Channel[] = channels.map((name, i) => ({
             id: `ch_${Date.now()}_${i}`,
@@ -52,13 +55,20 @@ export async function createRoom(opts: {
         let exists = await getDoc(doc(db, 'rooms', roomId));
         if (exists.exists()) roomId = generateRoomId();
 
-        await setDoc(doc(db, 'rooms', roomId), {
+        const roomData: any = {
             roomId,
             name: roomName.trim(),
             channels: channelList,
             createdBy,
             createdAt: serverTimestamp(),
-        });
+        };
+
+        if (password && password.trim()) {
+            roomData.password = password.trim();
+            roomData.hasPassword = true;
+        }
+
+        await setDoc(doc(db, 'rooms', roomId), roomData);
 
         for (const ch of channelList) {
             await setDoc(doc(db, 'rooms', roomId, 'channels', ch.id), {
@@ -85,19 +95,24 @@ export async function joinRoom(opts: {
     roomId: string;
     uid: string;
     displayName: string;
+    password?: string;
 }): Promise<{ room: Room | null; error: string | null }> {
-    const { roomId, uid, displayName } = opts;
+    const { roomId, uid, displayName, password } = opts;
     try {
         const roomRef = doc(db, 'rooms', roomId.trim().toUpperCase());
         const snap = await getDoc(roomRef);
         if (!snap.exists()) {
             return { room: null, error: 'Room not found. Check the room ID and try again.' };
         }
+        const data = snap.data() as Room;
+        if (data.password && data.password !== password) {
+            return { room: null, error: 'Incorrect room password.' };
+        }
         await setDoc(doc(db, 'rooms', roomId, 'members', uid), {
             displayName,
             joinedAt: serverTimestamp(),
         });
-        return { room: snap.data() as Room, error: null };
+        return { room: data, error: null };
     } catch (err: any) {
         console.error('[rooms] joinRoom:', err);
         return { room: null, error: err.message };
@@ -153,13 +168,18 @@ export async function updateChannelContent(opts: {
     channelId: string;
     content: string;
     uid: string;
+    language?: string;
 }): Promise<{ error: string | null }> {
     try {
-        await updateDoc(doc(db, 'rooms', opts.roomId, 'channels', opts.channelId), {
+        const updateData: any = {
             content: opts.content,
             updatedBy: opts.uid,
             updatedAt: serverTimestamp(),
-        });
+        };
+        if (opts.language !== undefined) {
+            updateData.language = opts.language;
+        }
+        await updateDoc(doc(db, 'rooms', opts.roomId, 'channels', opts.channelId), updateData);
         return { error: null };
     } catch (err: any) {
         return { error: err.message };
@@ -169,12 +189,17 @@ export async function updateChannelContent(opts: {
 export function subscribeToChannel(
     roomId: string,
     channelId: string,
-    callback: (data: { content: string; updatedBy: string }) => void
+    callback: (data: { content: string; updatedBy: string; language?: string }) => void
 ): () => void {
     const ref = doc(db, 'rooms', roomId, 'channels', channelId);
     return onSnapshot(ref, snap => {
         if (snap.exists()) {
-            callback({ content: snap.data().content, updatedBy: snap.data().updatedBy });
+            const data = snap.data();
+            callback({ 
+                content: data.content, 
+                updatedBy: data.updatedBy,
+                language: data.language
+            });
         }
     });
 }

@@ -3,8 +3,9 @@ import React, { useState, useCallback } from 'react';
 import {
     Shield, AlertTriangle, AlertCircle, Info, CheckCircle2,
     Loader2, ChevronDown, ChevronRight, Zap, Code2,
-    Bot, RefreshCw, Copy, Check
+    Bot, RefreshCw, Copy, Check, Settings
 } from 'lucide-react';
+
 import { motion, AnimatePresence } from 'motion/react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -183,6 +184,8 @@ export default function Debugger({ code, backendUrl = BACKEND }: DebuggerProps) 
     const [error, setError] = useState<string | null>(null);
     const [useLocalAI, setUseLocalAI] = useState(false);
     const [activeFilter, setActiveFilter] = useState<string>('all');
+    const [showSettings, setShowSettings] = useState(false);
+    const [apiKeyInput, setApiKeyInput] = useState(localStorage.getItem('groq_api_key') || '');
 
     const analyze = useCallback(async () => {
         if (!code?.trim()) {
@@ -195,31 +198,103 @@ export default function Debugger({ code, backendUrl = BACKEND }: DebuggerProps) 
         setResult(null);
         setActiveFilter('all');
 
+        const envKey = import.meta.env.VITE_GROQ_API_KEY;
+        const localKey = localStorage.getItem('groq_api_key');
+        const apiKey = envKey || localKey || '';
+
+        if (!apiKey.trim()) {
+            setError('Groq API Key is missing. Click the settings gear to enter your API Key, or set VITE_GROQ_API_KEY in your .env file.');
+            setLoading(false);
+            setShowSettings(true);
+            return;
+        }
+
+        const model = useLocalAI ? 'llama-3.1-8b-instant' : 'llama-3.3-70b-versatile';
+
         try {
-            const res = await fetch(`${backendUrl}/api/debug/analyze`, {
+            const systemPrompt = `You are an expert code analyzer and debugger. Analyze the user's code for bugs, syntax errors, security vulnerabilities, performance bottlenecks, and style issues.
+You MUST return a JSON object that strictly adheres to the following TypeScript interface structure:
+
+interface DebugIssue {
+    severity: 'critical' | 'high' | 'warning' | 'info';
+    type: string; // e.g., "Syntax Error", "Security", "Performance", "Logic", "Style"
+    message: string; // Short description of the issue
+    line?: number; // 1-based line number if applicable
+    lineContent?: string; // The exact line of code
+    suggestion: string; // How to fix it
+    ruleId?: string; // e.g., "no-unused-vars", "sql-injection", "redis-timeout"
+}
+
+interface DebugResult {
+    language: string; // e.g., "JavaScript", "TypeScript", "Python"
+    issues: DebugIssue[];
+    stats: {
+        critical: number;
+        high: number;
+        warning: number;
+        info: number;
+    };
+    score: number; // 0 to 100 code health score
+    grade: 'A' | 'B' | 'C' | 'D' | 'F';
+    summary: string; // High-level summary of code quality
+    aiExplanation?: string; // Markdown summary of the analysis and recommendations
+}
+
+Rules for scoring:
+- Grade A: score >= 90
+- Grade B: 80 <= score < 90
+- Grade C: 70 <= score < 80
+- Grade D: 60 <= score < 70
+- Grade F: score < 60
+Make sure the stats counts perfectly match the count of issues in the issues array. If there are no issues, stats should all be 0, score should be 100, and grade should be A.
+Ensure to escape any code inside JSON strings properly. Do not include markdown formatting or backticks around the JSON.`;
+
+            const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code, useLocalAI }),
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    model,
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: `Code to analyze:\n\n${code}` }
+                    ],
+                    response_format: { type: 'json_object' },
+                    temperature: 0.1,
+                    max_tokens: 4096
+                }),
                 signal: AbortSignal.timeout(60_000),
             });
 
             if (!res.ok) {
                 const body = await res.json().catch(() => ({}));
-                throw new Error(body.error || `Server error ${res.status}`);
+                throw new Error(body.error?.message || `Groq API returned error ${res.status}`);
             }
 
             const data = await res.json();
-            setResult(data);
+            const content = data.choices?.[0]?.message?.content;
+            if (!content) {
+                throw new Error('Groq API returned an empty response.');
+            }
+
+            const parsedResult = JSON.parse(content);
+            parsedResult.linesAnalyzed = code.split('\n').length;
+            parsedResult.analyzedAt = new Date().toISOString();
+
+            setResult(parsedResult);
         } catch (err: any) {
+            console.error('Error analyzing code:', err);
             if (err.name === 'TimeoutError') {
                 setError('Analysis timed out. Try a shorter code snippet.');
             } else {
-                setError(err.message || 'Analysis failed. Make sure the backend server is running.');
+                setError(err.message || 'Analysis failed. Please verify your API Key and connection.');
             }
         } finally {
             setLoading(false);
         }
-    }, [code, useLocalAI, backendUrl]);
+    }, [code, useLocalAI]);
 
     const filteredIssues = result?.issues.filter(i =>
         activeFilter === 'all' ? true : i.severity === activeFilter
@@ -242,9 +317,20 @@ export default function Debugger({ code, backendUrl = BACKEND }: DebuggerProps) 
                         <Shield size={15} className="text-emerald-400" />
                     </div>
                     <span className="font-bold text-sm">DebugFlow Analyzer</span>
-                    <span className="text-[10px] text-zinc-500 bg-white/5 px-2 py-0.5 rounded-full font-mono">v1.0 · Rule Engine</span>
+                    <span className="text-[10px] text-zinc-500 bg-white/5 px-2 py-0.5 rounded-full font-mono">v1.0 · Groq Engine</span>
                 </div>
                 <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => setShowSettings(!showSettings)}
+                        className={`p-2 rounded-xl border transition-colors ${
+                            showSettings
+                                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                                : 'bg-white/5 border-transparent text-zinc-400 hover:text-white'
+                        }`}
+                        title="Groq Settings"
+                    >
+                        <Settings size={14} />
+                    </button>
                     <label className="flex items-center gap-1.5 cursor-pointer">
                         <input
                             type="checkbox"
@@ -266,6 +352,48 @@ export default function Debugger({ code, backendUrl = BACKEND }: DebuggerProps) 
                     </button>
                 </div>
             </div>
+
+            {/* Groq Settings Panel */}
+            <AnimatePresence>
+                {showSettings && (
+                    <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="bg-zinc-950/60 border-b border-dark-border px-5 py-3 space-y-2 overflow-hidden"
+                    >
+                        <div className="flex flex-col gap-1.5">
+                            <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Groq API Key</label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="password"
+                                    placeholder="gsk_..."
+                                    value={apiKeyInput}
+                                    onChange={e => {
+                                        setApiKeyInput(e.target.value);
+                                        localStorage.setItem('groq_api_key', e.target.value);
+                                    }}
+                                    className="flex-1 bg-black/40 border border-dark-border rounded-xl px-3 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-emerald-500/50"
+                                />
+                                {apiKeyInput && (
+                                    <button
+                                        onClick={() => {
+                                            setApiKeyInput('');
+                                            localStorage.removeItem('groq_api_key');
+                                        }}
+                                        className="px-2.5 py-1.5 text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20 rounded-xl hover:bg-red-500/20 transition-colors"
+                                    >
+                                        Clear
+                                    </button>
+                                )}
+                            </div>
+                            <p className="text-[10px] text-zinc-500">
+                                Enter your Groq API Key. It is stored locally in your browser. Alternatively, set <code>VITE_GROQ_API_KEY</code> in your <code>.env</code> file.
+                            </p>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Body */}
             <div className="flex-1 overflow-y-auto p-5 space-y-5">

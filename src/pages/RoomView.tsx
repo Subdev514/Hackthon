@@ -14,6 +14,7 @@ import {
   Loader2,
   ArrowLeft,
   Shield,
+  Lock,
 } from 'lucide-react';
 import Debugger from '../components/Debugger';
 import { motion, AnimatePresence } from 'motion/react';
@@ -26,8 +27,17 @@ import {
   subscribeToTyping,
   ChatMessage,
 } from '../lib/chat';
-import { getRoom, subscribeToMembers, Room } from '../lib/rooms';
+import { getRoom, joinRoom, subscribeToMembers, Room, subscribeToChannel, updateChannelContent } from '../lib/rooms';
 import { askDebugAI } from '../lib/api';
+
+const DEFAULT_TEMPLATES = {
+  c: `#include <stdio.h>\n\nint main() {\n    printf("Hello, DebugFlow C Compiler!\\\\n");\n    \n    // Test a basic loop\n    for (int i = 1; i <= 5; i++) {\n        printf("Iteration %d\\\\n", i);\n    }\n    \n    return 0;\n}`,
+  cpp: `#include <iostream>\n\nint main() {\n    std::cout << "Hello, DebugFlow C++ Compiler!" << std::endl;\n    \n    // Test a basic loop\n    for (int i = 1; i <= 5; i++) {\n        std::cout << "Iteration " << i << std::endl;\n    }\n    \n    return 0;\n}`,
+  py: `def greet(name):\n    print(f"Hello, {name}!")\n    \n    # Test a basic loop\n    for i in range(1, 6):\n        print(f"Iteration {i}")\n\ngreet("DebugFlow Python Compiler")\n`,
+  java: `public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello, DebugFlow Java Compiler!");\n        \n        // Test a basic loop\n        for (int i = 1; i <= 5; i++) {\n            System.out.println("Iteration " + i);\n        }\n    }\n}`,
+  js: `console.log("Hello, DebugFlow JavaScript Compiler!");\n\n// Test a basic loop\nfor (let i = 1; i <= 5; i++) {\n    console.log("Iteration " + i);\n}`,
+  go: `package main\n\nimport "fmt"\n\nfunc main() {\n    fmt.Println("Hello, DebugFlow Go Compiler!")\n    \n    // Test a basic loop\n    for i := 1; i <= 5; i++ {\n        fmt.Printf("Iteration %d\\n", i)\n    }\n}`,
+};
 
 export default function RoomView() {
   const { id: roomId } = useParams<{ id: string }>();
@@ -42,26 +52,57 @@ export default function RoomView() {
   const [typers, setTypers] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
 
+  // Password verification state
+  const [roomPassword, setRoomPassword] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [verifyingPassword, setVerifyingPassword] = useState(false);
+  const [isUnlocked, setIsUnlocked] = useState(false);
+
   // AI state
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState<string | null>(null);
-  const [codeSnippet, setCodeSnippet] = useState(`import { auth } from "@debugflow/core";
+  const [codeSnippet, setCodeSnippet] = useState('');
 
-const validateSession = async (token: string) => {
-  try {
-    // Check Redis cache first
-    const cached = await redis.get(token);
-    if (cached) return JSON.parse(cached);
+  // Compiler state
+  const [runLoading, setRunLoading] = useState(false);
+  const [runOutput, setRunOutput] = useState<string | null>(null);
+  const [language, setLanguage] = useState<'c' | 'cpp' | 'py' | 'java' | 'js' | 'go'>('c');
+  const [localApiKey, setLocalApiKey] = useState(localStorage.getItem('onlinecompiler_api_key') || '');
 
-    // If not in cache, verify with DB
-    const user = await db.users.findUnique({ where: { token } });
-    if (!user) throw new Error("Invalid session");
+  // Chat panel resizing state
+  const [chatWidth, setChatWidth] = useState(() => {
+    const saved = localStorage.getItem('chat_panel_width');
+    return saved ? parseInt(saved, 10) : 384;
+  });
+  const chatRef = useRef<HTMLDivElement>(null);
+  const isResizingChatRef = useRef(false);
 
-    return user;
-  } catch (error) {
-    return null;
-  }
-};`);
+  const startResizingChat = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizingChatRef.current = true;
+  }, []);
+
+  const stopResizingChat = useCallback(() => {
+    isResizingChatRef.current = false;
+  }, []);
+
+  const resizeChat = useCallback((e: MouseEvent) => {
+    if (isResizingChatRef.current && chatRef.current) {
+      const rect = chatRef.current.getBoundingClientRect();
+      const newWidth = Math.min(Math.max(280, e.clientX - rect.left), 600);
+      setChatWidth(newWidth);
+      localStorage.setItem('chat_panel_width', String(newWidth));
+    }
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('mousemove', resizeChat);
+    window.addEventListener('mouseup', stopResizingChat);
+    return () => {
+      window.removeEventListener('mousemove', resizeChat);
+      window.removeEventListener('mouseup', stopResizingChat);
+    };
+  }, [resizeChat, stopResizingChat]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -78,6 +119,49 @@ const validateSession = async (token: string) => {
     if (!roomId) return;
     getRoom(roomId).then(({ room: r }) => setRoom(r));
   }, [roomId]);
+
+  // Check room unlock status
+  useEffect(() => {
+    if (!room || !roomId) return;
+    const checkUnlock = () => {
+      if (!room.hasPassword) return true;
+      if (user && room.createdBy === user.uid) return true;
+      try {
+        const unlocked = JSON.parse(localStorage.getItem('unlocked_rooms') || '{}');
+        return !!unlocked[roomId];
+      } catch {
+        return false;
+      }
+    };
+    setIsUnlocked(checkUnlock());
+  }, [room, roomId, user]);
+
+  const handleVerifyPassword = async () => {
+    if (!roomId || !user || !room) return;
+    setVerifyingPassword(true);
+    setPasswordError(null);
+    try {
+      const { room: joined, error } = await joinRoom({
+        roomId,
+        uid: user.uid,
+        displayName,
+        password: roomPassword,
+      });
+
+      if (error) {
+        setPasswordError(error);
+      } else if (joined) {
+        const unlocked = JSON.parse(localStorage.getItem('unlocked_rooms') || '{}');
+        unlocked[roomId] = true;
+        localStorage.setItem('unlocked_rooms', JSON.stringify(unlocked));
+        setIsUnlocked(true);
+      }
+    } catch (err: any) {
+      setPasswordError(err.message);
+    } finally {
+      setVerifyingPassword(false);
+    }
+  };
 
   // Subscribe to messages
   useEffect(() => {
@@ -101,6 +185,139 @@ const validateSession = async (token: string) => {
     const unsub = subscribeToTyping(roomId, user.uid, setTypers);
     return unsub;
   }, [roomId, user]);
+
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasLoadedRef = useRef(false);
+
+  // Subscribe to channel code content
+  useEffect(() => {
+    if (!roomId || !activeChannelId || !user) return;
+    hasLoadedRef.current = false;
+    const unsub = subscribeToChannel(roomId, activeChannelId, (data) => {
+      if (!hasLoadedRef.current) {
+        const initialLang = (data.language as any) || 'c';
+        setLanguage(initialLang);
+        setCodeSnippet(data.content || DEFAULT_TEMPLATES[initialLang as keyof typeof DEFAULT_TEMPLATES]);
+        hasLoadedRef.current = true;
+      } else {
+        if (data.updatedBy !== user.uid) {
+          setCodeSnippet(data.content || '');
+          if (data.language) {
+            setLanguage(data.language as any);
+          }
+        }
+      }
+    });
+    return () => {
+      unsub();
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, [roomId, activeChannelId, user]);
+
+  const handleLanguageChange = async (newLang: typeof language) => {
+    setLanguage(newLang);
+    
+    const templateValues = Object.values(DEFAULT_TEMPLATES).map(t => t.trim());
+    const isEmptyOrTemplate = !codeSnippet.trim() || templateValues.includes(codeSnippet.trim());
+    
+    let updatedCode = codeSnippet;
+    if (isEmptyOrTemplate) {
+      updatedCode = DEFAULT_TEMPLATES[newLang];
+      setCodeSnippet(updatedCode);
+    }
+
+    if (!roomId || !activeChannelId || !user) return;
+    
+    await updateChannelContent({
+      roomId,
+      channelId: activeChannelId,
+      content: updatedCode,
+      language: newLang,
+      uid: user.uid,
+    });
+  };
+
+  const handleCodeChange = (val: string) => {
+    setCodeSnippet(val);
+    
+    if (!roomId || !activeChannelId || !user) return;
+    
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    
+    saveTimeoutRef.current = setTimeout(async () => {
+      await updateChannelContent({
+        roomId,
+        channelId: activeChannelId,
+        content: val,
+        language,
+        uid: user.uid,
+      });
+    }, 1000);
+  };
+
+  const saveCompilerKey = (key: string) => {
+    localStorage.setItem('onlinecompiler_api_key', key);
+    setLocalApiKey(key);
+  };
+
+  const runCode = async () => {
+    if (!codeSnippet.trim()) return;
+    setActiveTab('terminal');
+    
+    const envKey = import.meta.env.VITE_ONLINECOMPILER_API_KEY;
+    const localKey = localStorage.getItem('onlinecompiler_api_key');
+    const apiKey = envKey || localKey || '';
+
+    if (!apiKey.trim()) {
+      setRunOutput(null);
+      return;
+    }
+
+    setRunLoading(true);
+    setRunOutput(null);
+
+    const compilerMap = {
+      c: 'gcc-15',
+      cpp: 'g++-15',
+      py: 'python-3.14',
+      java: 'openjdk-25',
+      js: 'typescript-deno',
+      go: 'go-1.26',
+    };
+
+    const compilerId = compilerMap[language] || 'gcc-15';
+
+    try {
+      const res = await fetch('https://corsproxy.io/?url=' + encodeURIComponent('https://api.onlinecompiler.io/api/run-code-sync/'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': apiKey,
+        },
+        body: JSON.stringify({
+          compiler: compilerId,
+          code: codeSnippet,
+          input: '',
+        }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Compiler API returned status ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (data.error) {
+        setRunOutput(data.error);
+      } else {
+        setRunOutput(data.output || 'Program compiled and executed with no output.');
+      }
+    } catch (err: any) {
+      setRunOutput(`Error compiling/running code: ${err.message}`);
+    } finally {
+      setRunLoading(false);
+    }
+  };
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -158,10 +375,66 @@ const validateSession = async (token: string) => {
     }
   };
 
+  if (room && room.hasPassword && !isUnlocked) {
+    return (
+      <div className="h-[calc(100vh-120px)] flex items-center justify-center bg-dark-bg/60 backdrop-blur-md">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="w-full max-w-md bg-dark-surface border border-dark-border rounded-3xl p-8 shadow-2xl text-center space-y-6"
+        >
+          <div className="w-16 h-16 bg-yellow-500/10 text-yellow-400 rounded-2xl flex items-center justify-center mx-auto">
+            <Lock size={28} />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold mb-1">Password Required</h2>
+            <p className="text-zinc-500 text-sm">" {room.name} " is a password-protected debug room.</p>
+          </div>
+
+          {passwordError && (
+            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm text-center">
+              {passwordError}
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <input
+              type="password"
+              placeholder="Enter room password..."
+              value={roomPassword}
+              onChange={e => setRoomPassword(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleVerifyPassword()}
+              className="w-full bg-dark-bg border border-dark-border rounded-xl py-3 px-4 text-center focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all text-zinc-200"
+            />
+            <div className="flex gap-4">
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="btn-secondary flex-1 py-3 text-sm"
+              >
+                Back to Dashboard
+              </button>
+              <button
+                onClick={handleVerifyPassword}
+                disabled={verifyingPassword}
+                className="btn-primary flex-1 py-3 text-sm disabled:opacity-60"
+              >
+                {verifyingPassword ? <Loader2 size={18} className="animate-spin mx-auto" /> : 'Unlock'}
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
-    <div className="h-[calc(100vh-120px)] flex gap-6">
+    <div className="h-[calc(100vh-120px)] flex gap-2">
       {/* Chat Panel */}
-      <div className="w-96 flex flex-col bg-dark-surface rounded-2xl border border-dark-border overflow-hidden">
+      <div
+        ref={chatRef}
+        style={{ width: `${chatWidth}px` }}
+        className="flex flex-col bg-dark-surface rounded-2xl border border-dark-border overflow-hidden shrink-0"
+      >
         {/* Chat Header */}
         <div className="p-4 border-b border-dark-border flex items-center justify-between bg-white/5">
           <div className="flex items-center gap-3">
@@ -254,6 +527,14 @@ const validateSession = async (token: string) => {
         </div>
       </div>
 
+      {/* Resize Handle */}
+      <div
+        onMouseDown={startResizingChat}
+        className="w-[6px] h-full cursor-col-resize hover:bg-emerald-500/30 active:bg-emerald-500/50 transition-colors shrink-0 flex items-center justify-center rounded-lg z-10"
+      >
+        <div className="w-[2px] h-8 bg-zinc-850 rounded" />
+      </div>
+
       {/* Code / Editor Panel */}
       <div className="flex-1 flex flex-col bg-dark-surface rounded-2xl border border-dark-border overflow-hidden">
         <div className="flex items-center justify-between px-4 bg-white/5 border-b border-dark-border">
@@ -270,13 +551,30 @@ const validateSession = async (token: string) => {
                 {tab === 'code' && <Code size={18} />}
                 {tab === 'terminal' && <Terminal size={18} />}
                 {tab === 'debugger' && <Shield size={18} className="text-emerald-400" />}
-                {tab === 'code' ? 'Editor' : tab === 'terminal' ? 'Terminal' : 'Debugger'}
+                {tab === 'code' ? 'Editor' : tab === 'terminal' ? 'Output' : 'Debugger'}
               </button>
             ))}
           </div>
           <div className="flex items-center gap-3">
-            <button className="btn-primary py-1.5 px-4 text-xs">
-              <Play size={14} className="fill-current" /> Run Code
+            <select
+              value={language}
+              onChange={(e) => handleLanguageChange(e.target.value as any)}
+              className="bg-black/40 border border-dark-border rounded-xl px-3 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-emerald-500/50 cursor-pointer"
+            >
+              <option value="c">C</option>
+              <option value="cpp">C++</option>
+              <option value="py">Python</option>
+              <option value="java">Java</option>
+              <option value="js">JavaScript</option>
+              <option value="go">Go</option>
+            </select>
+            <button 
+              onClick={runCode}
+              disabled={runLoading}
+              className="btn-primary py-1.5 px-4 text-xs flex items-center gap-1.5 disabled:opacity-50"
+            >
+              {runLoading ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} className="fill-current" />}
+              Run Code
             </button>
             <button className="p-2 text-zinc-500 hover:text-white transition-colors"><MoreHorizontal size={20} /></button>
           </div>
@@ -294,7 +592,7 @@ const validateSession = async (token: string) => {
               >
                 <textarea
                   value={codeSnippet}
-                  onChange={(e) => setCodeSnippet(e.target.value)}
+                  onChange={(e) => handleCodeChange(e.target.value)}
                   className="w-full h-full bg-transparent resize-none focus:outline-none"
                   spellCheck="false"
                 />
@@ -307,19 +605,46 @@ const validateSession = async (token: string) => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="h-full bg-black/50 p-6 font-mono text-sm text-zinc-300"
+                className="h-full bg-black/50 p-6 font-mono text-sm text-zinc-300 overflow-y-auto"
               >
-                <div className="space-y-2">
-                  <p className="text-emerald-400">user@debugflow:~/room$ <span className="text-white">npm run dev</span></p>
-                  <p className="text-zinc-500">{'['}vite{']'} server started at http://localhost:3000</p>
-                  <p className="text-zinc-500">{'['}auth{']'} Initializing Redis connection...</p>
-                  <p className="text-red-400">{'['}error{']'} Redis connection failed: Connection timeout</p>
-                  <p className="text-zinc-500">{'['}auth{']'} Retrying in 5s...</p>
-                  <div className="flex gap-2">
-                    <span className="text-emerald-400">user@debugflow:~/room$</span>
-                    <span className="w-2 h-5 bg-zinc-500 animate-pulse" />
+                {runLoading ? (
+                  <div className="flex items-center gap-2 text-zinc-400">
+                    <Loader2 size={16} className="animate-spin text-emerald-400" />
+                    <span>Compiling and executing code...</span>
                   </div>
-                </div>
+                ) : !(import.meta.env.VITE_ONLINECOMPILER_API_KEY || localApiKey) ? (
+                  <div className="p-5 bg-zinc-900/60 border border-dark-border rounded-2xl max-w-md mx-auto my-8 space-y-4">
+                    <div className="flex items-center gap-2 text-yellow-400">
+                      <Shield size={16} />
+                      <span className="text-sm font-bold">OnlineCompiler.io API Key Required</span>
+                    </div>
+                    <p className="text-xs text-zinc-400 leading-relaxed">
+                      To run your programs, you need an API key from OnlineCompiler.io. You can get a free key by signing up at <a href="https://api.onlinecompiler.io" target="_blank" rel="noreferrer" className="text-emerald-400 underline hover:text-emerald-300">api.onlinecompiler.io</a>.
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        placeholder="Paste API Key here..."
+                        value={localApiKey}
+                        onChange={e => setLocalApiKey(e.target.value)}
+                        className="flex-1 bg-black/40 border border-dark-border rounded-xl px-3 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-emerald-500/50"
+                      />
+                      <button
+                        onClick={() => saveCompilerKey(localApiKey)}
+                        className="btn-primary py-1.5 px-3 text-xs"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                ) : runOutput ? (
+                  <pre className="whitespace-pre-wrap font-mono text-zinc-200">{runOutput}</pre>
+                ) : (
+                  <div className="text-zinc-500 text-sm">
+                    <p>Click "Run Code" to compile and execute your program.</p>
+                    <p className="text-xs text-zinc-600 mt-1">Execution is powered by the OnlineCompiler.io API.</p>
+                  </div>
+                )}
               </motion.div>
             )}
 

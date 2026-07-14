@@ -9,10 +9,11 @@ import {
   Plus,
   X,
   Loader2,
+  Lock,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
-import { getAllRooms, createRoom, Room } from '../lib/rooms';
+import { getAllRooms, createRoom, joinRoom, Room } from '../lib/rooms';
 import { MOCK_BUGS } from '../constants';
 
 const StatCard = ({
@@ -58,6 +59,15 @@ export default function Dashboard() {
   const [channelsInput, setChannelsInput] = useState('general, code, debug');
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [isPasswordProtected, setIsPasswordProtected] = useState(false);
+  const [roomPassword, setRoomPassword] = useState('');
+
+  // Lock modal state
+  const [showLockModal, setShowLockModal] = useState(false);
+  const [selectedLockRoom, setSelectedLockRoom] = useState<Room | null>(null);
+  const [lockPassword, setLockPassword] = useState('');
+  const [lockError, setLockError] = useState<string | null>(null);
+  const [unlocking, setUnlocking] = useState(false);
 
   const displayName = profile?.displayName ?? user?.displayName ?? 'there';
   const firstName = displayName.split(' ')[0];
@@ -69,6 +79,58 @@ export default function Dashboard() {
       setLoadingRooms(false);
     });
   }, []);
+
+  const isRoomAccessible = (r: Room) => {
+    if (!r.hasPassword) return true;
+    if (user && r.createdBy === user.uid) return true;
+    try {
+      const unlocked = JSON.parse(localStorage.getItem('unlocked_rooms') || '{}');
+      return !!unlocked[r.roomId];
+    } catch {
+      return false;
+    }
+  };
+
+  const handleRoomClick = (r: Room) => {
+    if (isRoomAccessible(r)) {
+      navigate(`/room/${r.roomId}`);
+    } else {
+      setSelectedLockRoom(r);
+      setLockPassword('');
+      setLockError(null);
+      setShowLockModal(true);
+    }
+  };
+
+  const handleUnlockRoom = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedLockRoom || !user) return;
+    setUnlocking(true);
+    setLockError(null);
+    try {
+      const { room: joined, error } = await joinRoom({
+        roomId: selectedLockRoom.roomId,
+        uid: user.uid,
+        displayName: displayName,
+        password: lockPassword,
+      });
+
+      if (error) {
+        setLockError(error);
+      } else if (joined) {
+        const unlocked = JSON.parse(localStorage.getItem('unlocked_rooms') || '{}');
+        unlocked[selectedLockRoom.roomId] = true;
+        localStorage.setItem('unlocked_rooms', JSON.stringify(unlocked));
+        
+        setShowLockModal(false);
+        navigate(`/room/${selectedLockRoom.roomId}`);
+      }
+    } catch (err: any) {
+      setLockError(err.message);
+    } finally {
+      setUnlocking(false);
+    }
+  };
 
   const handleCreateRoom = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,6 +145,7 @@ export default function Dashboard() {
       channels: channels.length ? channels : ['general'],
       createdBy: user.uid,
       displayName: displayName,
+      password: isPasswordProtected ? roomPassword : '',
     });
     setCreating(false);
 
@@ -91,6 +154,8 @@ export default function Dashboard() {
       setShowModal(false);
       setRoomName('');
       setChannelsInput('general, code, debug');
+      setIsPasswordProtected(false);
+      setRoomPassword('');
       // Refresh rooms list
       const updated = await getAllRooms();
       setRooms(updated);
@@ -139,17 +204,24 @@ export default function Dashboard() {
           ) : (
             <div className="space-y-4">
               {rooms.map(room => (
-                <Link key={room.roomId} to={`/room/${room.roomId}`} className="block">
+                <div key={room.roomId} onClick={() => handleRoomClick(room)} className="block cursor-pointer">
                   <motion.div
                     whileHover={{ x: 4 }}
-                    className="p-5 rounded-2xl bg-dark-surface border border-dark-border flex items-center justify-between group cursor-pointer"
+                    className="p-5 rounded-2xl bg-dark-surface border border-dark-border flex items-center justify-between group"
                   >
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center text-zinc-400 group-hover:text-emerald-400 transition-colors">
                         <Zap size={24} />
                       </div>
                       <div>
-                        <h3 className="font-bold mb-1">{room.name}</h3>
+                        <h3 className="font-bold mb-1 flex items-center gap-2">
+                          {room.name}
+                          {room.hasPassword && (
+                            <span className="text-yellow-500" title="Password Protected">
+                              <Lock size={14} className="fill-current" />
+                            </span>
+                          )}
+                        </h3>
                         <div className="flex items-center gap-3 text-xs text-zinc-500">
                           <span className="flex items-center gap-1">
                             <Users size={12} /> {room.channels?.length ?? 0} channels
@@ -165,7 +237,7 @@ export default function Dashboard() {
                       <ArrowUpRight size={20} />
                     </button>
                   </motion.div>
-                </Link>
+                </div>
               ))}
             </div>
           )}
@@ -255,6 +327,40 @@ export default function Dashboard() {
                     className="w-full bg-dark-bg border border-dark-border rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
                   />
                 </div>
+                
+                <div className="space-y-4 pt-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Password Protected</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsPasswordProtected(!isPasswordProtected)}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        isPasswordProtected ? 'bg-emerald-500' : 'bg-zinc-700'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          isPasswordProtected ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {isPasswordProtected && (
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Password</label>
+                      <input
+                        type="password"
+                        value={roomPassword}
+                        onChange={e => setRoomPassword(e.target.value)}
+                        placeholder="Enter room password..."
+                        className="w-full bg-dark-bg border border-dark-border rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all text-zinc-200"
+                        required={isPasswordProtected}
+                      />
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex gap-4 pt-2">
                   <button
                     type="button"
@@ -265,6 +371,73 @@ export default function Dashboard() {
                   </button>
                   <button type="submit" disabled={creating} className="btn-primary flex-1 py-3 disabled:opacity-60">
                     {creating ? <Loader2 size={18} className="animate-spin" /> : <><Plus size={18} /> Create Room</>}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Room Unlock Password Modal */}
+      <AnimatePresence>
+        {showLockModal && selectedLockRoom && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-6"
+            onClick={e => e.target === e.currentTarget && setShowLockModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-md bg-dark-surface border border-dark-border rounded-3xl p-8 shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-yellow-500/10 text-yellow-400">
+                    <Lock size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold">Password Required</h2>
+                    <p className="text-zinc-500 text-xs mt-0.5">Enter password for "{selectedLockRoom.name}"</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowLockModal(false)} className="text-zinc-500 hover:text-white transition-colors">
+                  <X size={24} />
+                </button>
+              </div>
+
+              {lockError && (
+                <div className="mb-6 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm text-center">
+                  {lockError}
+                </div>
+              )}
+
+              <form onSubmit={handleUnlockRoom} className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Room Password</label>
+                  <input
+                    type="password"
+                    value={lockPassword}
+                    onChange={e => setLockPassword(e.target.value)}
+                    placeholder="Enter password..."
+                    className="w-full bg-dark-bg border border-dark-border rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all text-zinc-200"
+                    required
+                  />
+                </div>
+                <div className="flex gap-4 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowLockModal(false)}
+                    className="btn-secondary flex-1 py-3"
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={unlocking} className="btn-primary flex-1 py-3 disabled:opacity-60">
+                    {unlocking ? <Loader2 size={18} className="animate-spin" /> : 'Unlock & Join'}
                   </button>
                 </div>
               </form>
